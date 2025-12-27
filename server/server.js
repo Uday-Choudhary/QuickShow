@@ -10,6 +10,7 @@ import { functions, inngest } from "./inngest/index.js";
 import showRouter from "./routes/showRoutes.js";
 import bookingRouter from "./routes/bookingRoutes.js";
 import adminRouter from "./routes/adminRoutes.js";
+import userRouter from "./routes/userRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,7 +39,7 @@ app.use(
 app.use("/api/shows", showRouter);
 app.use("/api/booking", bookingRouter);
 app.use("/api/admin", adminRouter);
-
+app.use("/api/user", userRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
