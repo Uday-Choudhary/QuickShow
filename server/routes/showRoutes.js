@@ -2,12 +2,11 @@ import express from "express";
 import { addShow, getNowPlayingMovies, getShow, getShows } from "../controllers/showController.js";
 import { protectAdmin } from "../middleware/auth.js";
 
-const router = express.Router();
+const showRouter = express.Router();
 
-router.get("/now-playing", protectAdmin, getNowPlayingMovies);
-router.post("/add", protectAdmin, addShow);
-router.get("/all", getShows)
-router.get("/:movieId", getShow)
+showRouter.get("/now-playing", protectAdmin, getNowPlayingMovies);
+showRouter.post("/add", protectAdmin, addShow);
+showRouter.get("/all", getShows)
+showRouter.get("/:movieId", getShow)
 
-export default router;
-    
+export default showRouter;
