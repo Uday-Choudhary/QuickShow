@@ -207,3 +207,71 @@ export const getShow = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+/* ================= GET TRAILERS ================= */
+export const getTrailers = async (req, res) => {
+    try {
+        if (!process.env.TMDB_API_KEY) {
+            return res.status(500).json({ message: "TMDB API key missing" });
+        }
+
+        // 1. Fetch upcoming (or now playing) movies
+        console.log("Fetching upcoming movies...");
+        const { data } = await axios.get(
+            `https://api.themoviedb.org/3/movie/upcoming`,
+            {
+                params: {
+                    api_key: process.env.TMDB_API_KEY,
+                    region: 'IN', // customized for region
+                    page: 1
+                }
+            }
+        );
+        console.log("Fetched upcoming movies:", data.results.length);
+
+        // 2. Take top 5 movies
+        const movies = data.results.slice(0, 5);
+
+        // 3. Fetch videos for each movie
+        const trailerPromises = movies.map(async (movie) => {
+            try {
+                const videoRes = await axios.get(
+                    `https://api.themoviedb.org/3/movie/${movie.id}/videos`,
+                    {
+                        params: { api_key: process.env.TMDB_API_KEY }
+                    }
+                );
+
+                // Find a youtube Trailer
+                const trailer = videoRes.data.results.find(
+                    (vid) => vid.site === "YouTube" && (vid.type === "Trailer" || vid.type === "Teaser")
+                );
+
+                return {
+                    id: movie.id,
+                    title: movie.title,
+                    image: `https://image.tmdb.org/t/p/original${movie.backdrop_path}`,
+                    videoUrl: trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null,
+                    subtitle: `${movie.release_date} • ${movie.original_language.toUpperCase()}`
+                };
+            } catch (innerError) {
+                console.error(`Failed to fetch video for movie ${movie.id}:`, innerError.message);
+                return null;
+            }
+        });
+
+        const trailers = await Promise.all(trailerPromises);
+
+        // Filter out failed fetches and those without videoUrl
+        const validTrailers = trailers.filter(t => t && t.videoUrl);
+
+        res.status(200).json({
+            success: true,
+            trailers: validTrailers
+        });
+
+    } catch (error) {
+        console.error("GET TRAILERS ERROR:", error.message, error.response?.data);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};

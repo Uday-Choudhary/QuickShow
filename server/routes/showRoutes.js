@@ -5,6 +5,7 @@ import {
     getNowPlayingMovies,
     getShow,
     getShows,
+    getTrailers,
 } from "../controllers/showController.js";
 
 import { protectAdmin } from "../middleware/auth.js";
@@ -13,6 +14,7 @@ const showRouter = express.Router();
 
 /* ===================== SHOW ROUTES ===================== */
 showRouter.get("/now-playing", protectAdmin, getNowPlayingMovies);
+showRouter.get("/trailers", getTrailers); // New Public Route
 showRouter.post("/add", protectAdmin, addShow);
 showRouter.get("/all", getShows);
 showRouter.get("/:movieId", getShow);

@@ -118,9 +118,7 @@ const SeatLayout = () => {
       });
 
       if (data.success) {
-        toast.success("Seats Reserved! Proceeding to payment...");
-        // REDIRECT TO MY BOOKINGS
-        navigate('/my-bookings');
+        window.location.href = data.url;
       } else {
         toast.error(data.message || "Booking failed");
       }

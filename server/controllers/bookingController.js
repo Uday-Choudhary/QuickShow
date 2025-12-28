@@ -1,6 +1,8 @@
 import Show from "../models/Show.js";
 import Booking from "../models/Booking.js";
 import { inngest } from "../inngest/index.js";
+import stripe from 'stripe'
+
 
 /* ===================== SEAT AVAILABILITY ===================== */
 const checkSeatsAvailability = async (showId, selectedSeats) => {
@@ -28,6 +30,7 @@ export const createBooking = async (req, res) => {
     try {
         const { userId } = req.auth();
         const { showId, selectedSeats } = req.body;
+        const { origin } = req.headers;
 
         if (!showId || !Array.isArray(selectedSeats) || selectedSeats.length === 0) {
             return res.status(400).json({
@@ -106,9 +109,37 @@ export const createBooking = async (req, res) => {
             },
         });
 
+        const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
+
+        const line_items = [{
+            price_data: {
+                currency: 'usd',
+                product_data: {
+                    name: showData.movie.title,
+                },
+                unit_amount: Math.floor(showData.showPrice * 100),
+            },
+            quantity: 1,
+        }]
+
+        const session = await stripeInstance.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items : line_items,
+            mode: 'payment',
+            success_url: `${origin}/loading/my-bookings`,
+            cancel_url: `${origin}/my-bookings`,
+            metadata: {
+                bookingId: booking._id.toString(),
+            },
+            expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        });
+
+        booking.paymentLink = session.url;
+        await booking.save();
+
         return res.status(200).json({
             success: true,
-            message: "Booked successfully",
+            url : session.url,
             booking,
         });
     } catch (error) {

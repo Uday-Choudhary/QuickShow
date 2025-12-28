@@ -1,27 +1,77 @@
-import React, { useState } from 'react'
-import { dummyTrailers } from '../assets/assets'
+import React, { useState, useEffect } from 'react'
 import ReactPlayer from 'react-player'
 import BlurCircle from './BlurCircle'
 import { PlayCircleIcon } from 'lucide-react'
-const TrailersSection = () => {
-  
-    const [currentTrailer , setCurrentTrailers] = useState(dummyTrailers[0])
-  
-    return (
-    <div className='px-6 md:px-16 lg:px-24 xl:px-44 py-20 overflow-hidden'>
-        <p className='text-gray-300 font-medium text-lg max-w-[960px] mx-auto'>Trailers</p>
+import axios from 'axios'
+import { toast } from 'react-hot-toast'
 
-        <div className='relative mt-6'>
-            <BlurCircle top='-100px' right='-100px'/>
-            <ReactPlayer url={currentTrailer.videoUrl} controls={true}
-            className='mx-auto max-w-full' width="960px" height="540px"/>
-        </div>
+const TrailersSection = () => {
+
+    const [trailers, setTrailers] = useState([]);
+    const [currentTrailer, setCurrentTrailer] = useState(null)
+
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchTrailers = async () => {
+            try {
+                const { data } = await axios.get(import.meta.env.VITE_BASE_URL + '/api/shows/trailers');
+
+                if (data.success && data.trailers && data.trailers.length > 0) {
+                    setTrailers(data.trailers);
+                    setCurrentTrailer(data.trailers[0]);
+                }
+            } catch (error) {
+                console.error("Failed to fetch trailers:", error);
+                toast.error("Failed to load trailers");
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchTrailers();
+    }, [])
+
+    if (loading) {
+        return (
+            <div className='px-6 md:px-16 lg:px-24 xl:px-44 py-20 text-white text-center'>
+                Loading Trailers...
+            </div>
+        )
+    }
+
+    if (!currentTrailer) {
+        return (
+            <div className='px-6 md:px-16 lg:px-24 xl:px-44 py-20 text-gray-400 text-center'>
+                No trailers available at the moment.
+            </div>
+        )
+    }
+
+    return (
+        <div className='px-6 md:px-16 lg:px-24 xl:px-44 py-20 overflow-hidden'>
+            <p className='text-gray-300 font-medium text-lg max-w-[960px] mx-auto'>Coming Soon to Theaters</p>
+
+            <div className='relative mt-6'>
+                <BlurCircle top='-100px' right='-100px' />
+                <ReactPlayer
+                    key={currentTrailer.id}
+                    url={currentTrailer.videoUrl}
+                    controls={true}
+                    className='mx-auto max-w-full'
+                    width="960px"
+                    height="540px"
+                />
+            </div>
+
+            <p className='mt-4 text-center text-xl font-bold text-white'>{currentTrailer.title}</p>
+            <p className='text-center text-sm text-gray-400'>{currentTrailer.subtitle}</p>
+
             <div className='group grid grid-cols-4 gap-4 md:gap-8 mt-8 max-w-3xl mx-auto'>
-                {dummyTrailers.map((trailer) => (
+                {trailers.map((trailer, index) => (
                     <div
-                        key={trailer.image}
-                        className='relative group-hover:not-hover:opacity-50 hover:-translate-y-1 duration-300 transition max-md:h-60 max-h-60 cursor-pointer'
-                        onClick={() => setCurrentTrailers(trailer)}
+                        key={index}
+                        className={`relative group-hover:not-hover:opacity-50 hover:-translate-y-1 duration-300 transition max-md:h-60 max-h-60 cursor-pointer ${currentTrailer.id === trailer.id ? 'border-2 border-orange-500 rounded-lg' : ''}`}
+                        onClick={() => setCurrentTrailer(trailer)}
                     >
                         <img
                             src={trailer.image}
@@ -35,9 +85,9 @@ const TrailersSection = () => {
                     </div>
                 ))}
             </div>
-      
-    </div>
-  )
+
+        </div>
+    )
 }
 
 export default TrailersSection

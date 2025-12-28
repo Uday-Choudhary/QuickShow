@@ -20,6 +20,7 @@ import Dashboard from "./pages/admin/Dashboard";
 import AddShows from "./pages/admin/AddShows";
 import ListShows from "./pages/admin/ListShows";
 import ListBookings from "./pages/admin/ListBookings";
+import Loading from "./components/Loading";
 
 const App = () => {
   const location = useLocation();
@@ -41,6 +42,8 @@ const App = () => {
         <Route path="/buy/:id" element={<SeatLayout />} />
         <Route path="/my-bookings" element={<MyBookings />} />
         <Route path="/favorite" element={<Favorite />} />
+        <Route path="/loading/:nextUrl" element={<Loading />}/>
+
 
         {/* ===================== ADMIN ROUTES ===================== */}
         <Route
