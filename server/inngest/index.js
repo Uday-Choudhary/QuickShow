@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import Show from "../models/Show.js";
 import connectDB from "../config/db.js";
+import sendEmail from "../config/nodeMailer.js";
 
 export const inngest = new Inngest({
     id: "movie-ticket-booking",
@@ -18,9 +19,7 @@ const syncUserCreation = inngest.createFunction(
 
             console.log("[Inngest] sync-user-from-clerk received data:", JSON.stringify(event.data, null, 2));
 
-            // Handle both raw Webhook payload (event.data.data) and direct payload (event.data)
             const userData = event.data.data || event.data;
-
             const {
                 id,
                 first_name,
@@ -44,7 +43,6 @@ const syncUserCreation = inngest.createFunction(
                 console.log("Inngest: sync-user-from-clerk completed for ID:", id);
                 return { success: true, id };
             } catch (error) {
-                // Ignore duplicate key errors (idempotency)
                 if (error.code === 11000) {
                     console.log("Inngest: User already exists (duplicate key), skipping creation.");
                     return { success: true, message: "User exists" };
@@ -65,7 +63,6 @@ const syncUserDeletion = inngest.createFunction(
     async ({ event }) => {
         try {
             await connectDB();
-
             console.log("[Inngest] delete-user-from-clerk received data:", JSON.stringify(event.data, null, 2));
 
             const userData = event.data.data || event.data;
@@ -93,11 +90,9 @@ const syncUserUpdate = inngest.createFunction(
     async ({ event }) => {
         try {
             await connectDB();
-
             console.log("[Inngest] update-user-from-clerk received data:", JSON.stringify(event.data, null, 2));
 
             const userData = event.data.data || event.data;
-
             const {
                 id,
                 first_name,
@@ -118,7 +113,7 @@ const syncUserUpdate = inngest.createFunction(
                     name: `${first_name || ""} ${last_name || ""}`.trim(),
                     image: image_url,
                 },
-                { new: true, upsert: true } // Changed upsert: false to true to ensure user exists
+                { new: true, upsert: true }
             );
             console.log("Inngest: update-user-from-clerk completed for ID:", id);
             return { success: true, id };
@@ -137,19 +132,17 @@ const releaseUnpaidBooking = inngest.createFunction(
         const { bookingId } = event.data;
         console.log(`[Inngest] release-unpaid-booking started for bookingId: ${bookingId}`);
 
-        // 1. Wait for payment window (e.g., 5 seconds for testing, usually 5m)
+        // 1. Wait for payment window
         await step.sleep("wait-for-payment", "7m");
 
         // 2. Check Booking Status
         const booking = await step.run("check-payment-status", async () => {
             const bookingDoc = await Booking.findById(bookingId);
-            // Return a plain object, NOT a Mongoose document
             return bookingDoc ? bookingDoc.toObject() : null;
         });
 
-        // Use optional chaining for safety - booking might be null if manually deleted
         if (!booking || booking.isPaid) {
-            console.log(`[Inngest] Booking ${bookingId} paid or not found - No action needed. Found: ${!!booking}, isPaid: ${booking?.isPaid}`);
+            console.log(`[Inngest] Booking ${bookingId} paid or not found - No action needed.`);
             return { message: "Booking paid or not found - No action needed" };
         }
 
@@ -158,33 +151,29 @@ const releaseUnpaidBooking = inngest.createFunction(
         // 3. Release Seats if Unpaid
         await step.run("release-seats", async () => {
             try {
+                // Note: Using 'booking.shows' based on your provided code
                 const show = await Show.findById(booking.shows);
                 if (!show) {
-                    console.error(`[Inngest] Show not found for booking ${bookingId}. Show ID: ${booking.shows}`);
+                    console.error(`[Inngest] Show not found for booking ${bookingId}`);
                     return;
                 }
 
-                console.log(`[Inngest] Releasing seats for Show ${show._id}. Seats to release: ${booking.bookedSeats.join(', ')}`);
-
-                // Construct $unset update to remove specific seats from the Map
                 const updateOperation = { $unset: {} };
                 booking.bookedSeats.forEach((seat) => {
                     updateOperation.$unset[`occupiedSeats.${seat}`] = "";
                 });
 
-                const updatedShow = await Show.findByIdAndUpdate(booking.shows, updateOperation, { new: true });
-                console.log(`[Inngest] Seats released for Show ${show._id}. Updated occupiedSeats keys: ${Object.keys(updatedShow.occupiedSeats || {}).join(', ')}`);
+                await Show.findByIdAndUpdate(booking.shows, updateOperation, { new: true });
 
                 // 4. Mark Booking as Cancelled
                 await Booking.findByIdAndUpdate(bookingId, {
                     status: "Cancelled",
-                    // Ensure isPaid is false (redundant but safe)
                     isPaid: false
                 });
                 console.log(`[Inngest] Booking ${bookingId} marked as Cancelled`);
             } catch (error) {
                 console.error(`[Inngest] Error executing release-seats step for booking ${bookingId}:`, error);
-                throw error; // Re-throw to ensure Inngest records the failure
+                throw error;
             }
         });
 
@@ -192,9 +181,116 @@ const releaseUnpaidBooking = inngest.createFunction(
     }
 );
 
+/* ===================== SEND BOOKING CONFIRMATION ===================== */
+const sendBookingConfirmationEmail = inngest.createFunction(
+    { id: "send-booking-confirmation-email" },
+    { event: "app/show.booked" },
+    async ({ event, step }) => {
+        const { bookingId } = event.data;
+
+        // Step 1: Fetch Booking Data
+        // We use step.run so if email fails, we don't re-query DB on retry
+        const booking = await step.run("fetch-booking-details", async () => {
+            await connectDB();
+
+            // Note: I used 'shows' here to match your 'releaseUnpaidBooking' logic.
+            // If your Schema field is actually 'show', change 'path: "shows"' to 'path: "show"'
+            const bookingDoc = await Booking.findById(bookingId)
+                .populate({
+                    path: "shows",
+                    populate: {
+                        path: "movie",
+                        model: "Movie"
+                    }
+                })
+                .populate("user");
+
+            if (!bookingDoc) throw new Error(`Booking not found: ${bookingId}`);
+
+            // Convert to JSON to remove Mongoose methods for Inngest state
+            return JSON.parse(JSON.stringify(bookingDoc));
+        });
+
+        if (!booking || !booking.user || !booking.user.email) {
+            console.error("[Inngest] Cannot send email. Missing booking or user email.");
+            return { success: false, message: "Data missing" };
+        }
+
+        // Step 2: Send Email
+        await step.run("send-confirmation-email", async () => {
+            // Check if population worked correctly
+            const movieTitle = booking.shows?.movie?.title || "Unknown Movie";
+            const showTime = booking.shows?.startTime || "N/A";
+
+            await sendEmail({
+                to: booking.user.email,
+                subject: `Payment Confirmation for ${movieTitle}`,
+                html: `
+<div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden;">
+
+            <div style="background-color: #FF3E41; padding: 20px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Booking Confirmed!</h1>
+                <p style="color: #ffe0e0; margin: 5px 0 0;">Get your popcorn ready 🍿</p>
+            </div>
+
+            <div style="padding: 30px;">
+                <p style="font-size: 16px; margin-bottom: 20px; text-align: center;">
+                    Hello, your tickets for <strong style="color: #FF3E41; font-size: 18px;">${movieTitle}</strong> are confirmed.
+                </p>
+
+                <div style="background-color: #f9f9f9; border: 2px dashed #e0e0e0; border-radius: 8px; padding: 20px;">
+                    
+                    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                        <span style="color: #777;">Booking ID</span>
+                        <strong style="color: #333;">${booking._id}</strong>
+                    </div>
+
+                    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                        <span style="color: #777;">Date</span>
+                        <strong style="color: #333;">${new Date(booking.createdAt).toDateString()}</strong>
+                    </div>
+
+                    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                        <span style="color: #777;">Time</span>
+                        <strong style="color: #333;">${showTime}</strong>
+                    </div>
+
+                    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                        <span style="color: #777;">Seats</span>
+                        <strong style="color: #333;">${booking.bookedSeats.join(', ')}</strong>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; padding-top: 5px;">
+                        <span style="color: #777;">Total Amount</span>
+                        <strong style="color: #28a745; font-size: 18px;">₹${booking.totalAmount}</strong>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 30px;">
+                    <p style="color: #888; font-size: 14px;">Please show this email at the cinema entrance.</p>
+                </div>
+            </div>
+
+            <div style="background-color: #333; color: #fff; padding: 15px; text-align: center; font-size: 12px;">
+                <p style="margin: 0;">&copy; ${new Date().getFullYear()} Movie Ticket Booking App</p>
+            </div>
+        </div>
+    </div>
+                `
+            });
+            console.log(`[Inngest] Confirmation email sent to ${booking.user.email}`);
+        });
+
+        return { success: true, bookingId };
+    }
+);
+
+// Export all functions
 export const functions = [
     syncUserCreation,
     syncUserDeletion,
     syncUserUpdate,
     releaseUnpaidBooking,
+    sendBookingConfirmationEmail,
 ];

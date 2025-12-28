@@ -124,7 +124,7 @@ export const createBooking = async (req, res) => {
 
         const session = await stripeInstance.checkout.sessions.create({
             payment_method_types: ['card'],
-            line_items : line_items,
+            line_items: line_items,
             mode: 'payment',
             success_url: `${origin}/loading/my-bookings`,
             cancel_url: `${origin}/my-bookings`,
@@ -135,11 +135,12 @@ export const createBooking = async (req, res) => {
         });
 
         booking.paymentLink = session.url;
+        booking.sessionId = session.id;
         await booking.save();
 
         return res.status(200).json({
             success: true,
-            url : session.url,
+            url: session.url,
             booking,
         });
     } catch (error) {
@@ -147,6 +148,130 @@ export const createBooking = async (req, res) => {
             success: false,
             message: error.message,
         });
+    }
+};
+
+/* ===================== RETRY PAYMENT ===================== */
+export const retryPayment = async (req, res) => {
+    try {
+        const { userId } = req.auth();
+        const { bookingId } = req.body;
+        const { origin } = req.headers;
+
+        const booking = await Booking.findById(bookingId).populate({
+            path: "shows",
+            populate: {
+                path: "movie",
+            },
+        });
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: "Booking not found",
+            });
+        }
+
+        if (booking.user.toString() !== userId) {
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized access to this booking",
+            });
+        }
+
+        if (booking.isPaid) {
+            return res.status(400).json({
+                success: false,
+                message: "Booking is already paid",
+            });
+        }
+
+        const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
+
+        const line_items = [{
+            price_data: {
+                currency: 'usd',
+                product_data: {
+                    name: booking.shows.movie.title,
+                },
+                unit_amount: Math.floor(booking.shows.showPrice * 100),
+            },
+            quantity: booking.bookedSeats.length,
+        }];
+
+        const session = await stripeInstance.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: line_items,
+            mode: 'payment',
+            success_url: `${origin}/loading/my-bookings`,
+            cancel_url: `${origin}/my-bookings`,
+            metadata: {
+                bookingId: booking._id.toString(),
+            },
+            expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        });
+
+        booking.paymentLink = session.url;
+        booking.sessionId = session.id;
+        await booking.save();
+
+        return res.status(200).json({
+            success: true,
+            url: session.url,
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+/* ===================== VERIFY BOOKING STATUS ===================== */
+export const verifyBooking = async (req, res) => {
+    try {
+        const { userId } = req.auth();
+        const { bookingId } = req.body;
+
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking not found" });
+        }
+
+        if (booking.isPaid) {
+            return res.status(200).json({ success: true, message: "Already paid", isPaid: true });
+        }
+
+        const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
+        let sessionId = booking.sessionId;
+
+        // Fallback: If sessionId is missing, try to extract from paymentLink (legacy/failed-save scenario)
+        if (!sessionId && booking.paymentLink) {
+            const match = booking.paymentLink.match(/\/pay\/(cs_[a-zA-Z0-9]+)/);
+            if (match) {
+                sessionId = match[1];
+            }
+        }
+
+        if (!sessionId) {
+            return res.status(400).json({ success: false, message: "No payment session found" });
+        }
+
+        const session = await stripeInstance.checkout.sessions.retrieve(sessionId);
+
+        if (session.payment_status === 'paid') {
+            booking.isPaid = true;
+            booking.paymentLink = ""; // Clear link as it's paid
+            await booking.save();
+            return res.status(200).json({ success: true, message: "Payment verified", isPaid: true });
+        }
+
+        return res.status(200).json({ success: false, message: "Payment not completed yet", isPaid: false });
+
+    } catch (error) {
+        console.error("Verify Booking Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 

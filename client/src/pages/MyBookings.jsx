@@ -42,6 +42,12 @@ const MyBookings = () => {
 
       if (data.success) {
         setBookings(data.bookings);
+        // Auto-verify unpaid bookings
+        data.bookings.forEach(booking => {
+          if (!booking.isPaid) {
+            verifyPaymentStatus(booking._id, token);
+          }
+        });
       } else {
         toast.error("Failed to fetch bookings");
       }
@@ -52,6 +58,21 @@ const MyBookings = () => {
     }
   };
 
+  /* ================= VERIFY PAYMENT ================= */
+  const verifyPaymentStatus = async (bookingId, token) => {
+    try {
+      const { data } = await axios.post("/api/booking/verify", { bookingId }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (data.success && data.isPaid) {
+        setBookings(prev => prev.map(b => b._id === bookingId ? { ...b, isPaid: true } : b));
+        toast.success("Payment verified!");
+      }
+    } catch (error) {
+      console.error("Verification failed", error);
+    }
+  };
+
   /* ================= PAYMENT ================= */
   const handlePayment = async (bookingId) => {
     try {
@@ -59,7 +80,7 @@ const MyBookings = () => {
       const token = await getToken();
 
       const { data } = await axios.post(
-        "/api/user/payment",
+        "/api/booking/pay",
         { bookingId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
