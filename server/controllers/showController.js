@@ -2,7 +2,7 @@ import axios from "axios";
 import Movie from "../models/Movies.js";
 import Show from "../models/Show.js";
 
-/* ================= NOW PLAYING ================= */
+/* ================= NOW PLAYING (INDIAN REGION) ================= */
 export const getNowPlayingMovies = async (req, res) => {
     try {
         if (!process.env.TMDB_API_KEY) {
@@ -12,7 +12,11 @@ export const getNowPlayingMovies = async (req, res) => {
         const { data } = await axios.get(
             "https://api.themoviedb.org/3/movie/now_playing",
             {
-                params: { api_key: process.env.TMDB_API_KEY },
+                params: {
+                    api_key: process.env.TMDB_API_KEY,
+                    region: 'IN', // ✅ Fix: Fetch Indian Theatrical releases
+                    page: 1
+                },
                 timeout: 10000,
             }
         );
@@ -27,17 +31,18 @@ export const getNowPlayingMovies = async (req, res) => {
 /* ================= ADD SHOW ================= */
 export const addShow = async (req, res) => {
     try {
-        const { movieId, showsInput, showPrice } = req.body;
+        // ✅ Updated to match Frontend payload: { movieId, price, dates }
+        const { movieId, price, dates } = req.body;
 
         if (
             !movieId ||
-            !Array.isArray(showsInput) ||
-            showsInput.length === 0 ||
-            typeof showPrice !== "number"
+            !dates ||
+            Object.keys(dates).length === 0 ||
+            typeof price !== "number"
         ) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid input data",
+                message: "Invalid input data: Movie, Price, or Dates missing",
             });
         }
 
@@ -45,57 +50,67 @@ export const addShow = async (req, res) => {
 
         /* ---------- fetch movie if not exists ---------- */
         if (!movie) {
-            const [detailsRes, creditsRes] = await Promise.all([
-                axios.get(`https://api.themoviedb.org/3/movie/${movieId}`, {
-                    params: { api_key: process.env.TMDB_API_KEY },
-                }),
-                axios.get(
-                    `https://api.themoviedb.org/3/movie/${movieId}/credits`,
-                    {
+            try {
+                const [detailsRes, creditsRes] = await Promise.all([
+                    axios.get(`https://api.themoviedb.org/3/movie/${movieId}`, {
                         params: { api_key: process.env.TMDB_API_KEY },
-                    }
-                ),
-            ]);
+                    }),
+                    axios.get(
+                        `https://api.themoviedb.org/3/movie/${movieId}/credits`,
+                        {
+                            params: { api_key: process.env.TMDB_API_KEY },
+                        }
+                    ),
+                ]);
 
-            movie = await Movie.create({
-                _id: movieId,
-                title: detailsRes.data.title,
-                overview: detailsRes.data.overview,
-                poster_path: detailsRes.data.poster_path,
-                backdrop_path: detailsRes.data.backdrop_path,
-                casts: creditsRes.data.cast,
-                release_date: detailsRes.data.release_date,
-                runtime: detailsRes.data.runtime,
-                vote_average: detailsRes.data.vote_average,
-                genres: detailsRes.data.genres,
-                original_language: detailsRes.data.original_language,
-                tagline: detailsRes.data.tagline || "",
-            });
+                movie = await Movie.create({
+                    _id: movieId,
+                    title: detailsRes.data.title,
+                    overview: detailsRes.data.overview,
+                    poster_path: detailsRes.data.poster_path,
+                    backdrop_path: detailsRes.data.backdrop_path,
+                    casts: creditsRes.data.cast,
+                    release_date: detailsRes.data.release_date,
+                    runtime: detailsRes.data.runtime,
+                    vote_average: detailsRes.data.vote_average,
+                    genres: detailsRes.data.genres,
+                    original_language: detailsRes.data.original_language,
+                    tagline: detailsRes.data.tagline || "",
+                });
+            } catch (tmdbError) {
+                console.error("Failed to fetch movie details from TMDB", tmdbError);
+                return res.status(500).json({ success: false, message: "Failed to fetch movie details from TMDB" });
+            }
         }
 
         /* ---------- build show docs (UTC safe) ---------- */
         const showsToCreate = [];
 
-        showsInput.forEach(({ date, time }) => {
-            time.forEach(t => {
-                const utcDate = new Date(`${date}T${t}:00.000Z`);
+        // ✅ Updated to handle Object: { "2024-12-28": ["10:00", "14:00"] }
+        Object.entries(dates).forEach(([date, times]) => {
+            if (Array.isArray(times)) {
+                times.forEach(t => {
+                    // Combine date and time string
+                    const dateTimeString = `${date}T${t}:00`;
+                    const showDateTime = new Date(dateTimeString);
 
-                // prevent inserting past shows
-                if (utcDate >= new Date()) {
-                    showsToCreate.push({
-                        movie: movieId,
-                        showDateTime: utcDate,
-                        showPrice,
-                        occupiedSeats: {},
-                    });
-                }
-            });
+                    // Only add future shows
+                    if (showDateTime > new Date()) {
+                        showsToCreate.push({
+                            movie: movieId,
+                            showDateTime: showDateTime,
+                            showPrice: price, // Mapped 'price' from body to 'showPrice' schema
+                            occupiedSeats: {}, // Initialize as empty object
+                        });
+                    }
+                });
+            }
         });
 
         if (showsToCreate.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: "All provided show times are in the past",
+                message: "All provided show times are in the past or invalid",
             });
         }
 
@@ -103,10 +118,10 @@ export const addShow = async (req, res) => {
 
         res.status(201).json({
             success: true,
-            message: "Show(s) added successfully",
+            message: `${showsToCreate.length} shows added successfully`,
         });
     } catch (error) {
-        console.error("ADD SHOW ERROR:", error.message);
+        console.error("ADD SHOW ERROR:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -159,9 +174,19 @@ export const getShow = async (req, res) => {
         const dateTime = {};
 
         shows.forEach(show => {
-            const iso = show.showDateTime.toISOString();
-            const date = iso.split("T")[0];
-            const time = iso.split("T")[1].slice(0, 5);
+            // Convert to local date string for grouping
+            const dateObj = new Date(show.showDateTime);
+
+            // Format YYYY-MM-DD manually to avoid timezone shifts
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            const date = `${year}-${month}-${day}`;
+
+            // Format HH:MM
+            const hours = String(dateObj.getHours()).padStart(2, '0');
+            const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+            const time = `${hours}:${minutes}`;
 
             if (!dateTime[date]) dateTime[date] = [];
 

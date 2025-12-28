@@ -49,7 +49,28 @@ export const getUserProfile = async (req, res) => {
 
         const { userId } = req.auth();
 
-        const userProfile = await User.findById(userId);
+        let userProfile = await User.findById(userId);
+
+        if (!userProfile) {
+            // Lazy Sync: User missing in DB (webhook failed?), sync from Clerk
+            try {
+                const clerkUser = await clerkClient.users.getUser(userId);
+
+                userProfile = await User.create({
+                    _id: userId,
+                    name: `${clerkUser.firstName || ""} ${clerkUser.lastName || ""}`.trim(),
+                    email: clerkUser.emailAddresses[0]?.emailAddress,
+                    image: clerkUser.imageUrl,
+                });
+                console.log(`[LazySync] User created for ID: ${userId}`);
+            } catch (clerkError) {
+                console.error("[LazySync] Failed to fetch/create user:", clerkError);
+                return res.status(404).json({
+                    success: false,
+                    message: "User not found and failed to sync",
+                });
+            }
+        }
 
         return res.status(200).json({
             success: true,

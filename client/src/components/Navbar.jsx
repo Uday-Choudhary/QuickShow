@@ -1,14 +1,48 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { assets } from '../assets/assets'
 import { MenuIcon, SearchIcon, TicketPlus, XIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useClerk, UserButton, useUser } from '@clerk/clerk-react'
+import { useAppContext } from '../context/AppContext'
 
 const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false)
     const { user } = useUser()
     const { openSignIn } = useClerk()
     const navigate = useNavigate()
+
+    // 1. Get Context to make API calls
+    const { axios, getToken } = useAppContext()
+    const [hasFavorites, setHasFavorites] = useState(false)
+
+    // 2. Check if user has favorites whenever they log in
+    useEffect(() => {
+        const checkFavorites = async () => {
+            if (!user) {
+                setHasFavorites(false);
+                return;
+            }
+
+            try {
+                const token = await getToken();
+                // We reuse the existing endpoint to check array length
+                const { data } = await axios.get("/api/user/favourites", {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (data.success && data.movies && data.movies.length > 0) {
+                    setHasFavorites(true);
+                } else {
+                    setHasFavorites(false);
+                }
+            } catch (error) {
+                console.error("Navbar check failed:", error);
+                setHasFavorites(false);
+            }
+        };
+
+        checkFavorites();
+    }, [user, axios, getToken]); // Runs when user status changes
 
     return (
         <div className='fixed top-0 left-0 z-50 w-full flex items-center justify-between px-6 md:px-16 lg:px-36 py-5'>
@@ -28,7 +62,11 @@ const Navbar = () => {
                 <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/movies">Movies</Link>
                 <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/theaters">Theaters</Link>
                 <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/releases">Releases</Link>
-                <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/favorite">Favorites</Link>
+
+                {/* 3. Condition: Show only if user exists AND has favorites */}
+                {user && hasFavorites && (
+                    <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/favorite">Favorites</Link>
+                )}
             </div>
 
             <div className='flex items-center gap-8'>
@@ -38,7 +76,7 @@ const Navbar = () => {
                     !user ? (
                         <button
                             onClick={openSignIn}
-                            className='px-4 py-1 sm:px-7 sm:py-2 bg-primary hover:bg-pr transition rounded-full font-medium cursor-pointer'>
+                            className='px-4 py-1 sm:px-7 sm:py-2 bg-primary hover:bg-primary-dull transition rounded-full font-medium cursor-pointer'>
                             Login
                         </button>
                     ) : (
@@ -55,6 +93,5 @@ const Navbar = () => {
         </div>
     )
 }
-
 
 export default Navbar
