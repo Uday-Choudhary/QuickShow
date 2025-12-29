@@ -284,3 +284,51 @@ export const getTrailers = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+/* ================= GET SINGLE MOVIE TRAILER ================= */
+export const getMovieTrailer = async (req, res) => {
+    try {
+        const { movieId } = req.params;
+
+        if (!process.env.TMDB_API_KEY) {
+            return res.status(500).json({ message: "TMDB API key missing" });
+        }
+
+        const { data } = await axios.get(
+            `https://api.themoviedb.org/3/movie/${movieId}/videos`,
+            {
+                params: { api_key: process.env.TMDB_API_KEY }
+            }
+        );
+
+        const videos = data.results || [];
+
+        // 1. Priority: Find a Trailer specifically
+        let video = videos.find(
+            (vid) => vid.site === "YouTube" && vid.type === "Trailer"
+        );
+
+        // 2. Fallback: If no Trailer, find a Teaser
+        if (!video) {
+            video = videos.find(
+                (vid) => vid.site === "YouTube" && vid.type === "Teaser"
+            );
+        }
+
+        // 3. Response
+        if (video) {
+            res.status(200).json({ success: true, key: video.key });
+        } else {
+            res.status(404).json({ success: false, message: "Trailer not available" });
+        }
+
+    } catch (error) {
+        // Handle 404 from TMDB specifically (invalid ID)
+        if (error.response && error.response.status === 404) {
+            return res.status(404).json({ success: false, message: "Movie not found" });
+        }
+
+        console.error("GET MOVIE TRAILER ERROR:", error.message);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};

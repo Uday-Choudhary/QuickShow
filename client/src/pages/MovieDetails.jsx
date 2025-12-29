@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
+import YouTube from 'react-youtube';
 import BlurCircle from "../components/BlurCircle";
-import { Heart, PlayCircleIcon, StarIcon, Calendar, Clock, Ticket, ChevronLeft } from "lucide-react";
+import { Heart, PlayCircleIcon, StarIcon, Calendar, Clock, Ticket, ChevronLeft, X } from "lucide-react";
 import timeFormat from "../lib/timeFormat";
 import DateSelect from "../components/DateSelect";
 import MovieCard from "../components/MovieCard";
@@ -17,6 +18,28 @@ const MovieDetails = () => {
   const [movie, setMovie] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [trailerKey, setTrailerKey] = useState(null);
+  const [isTrailerOpen, setIsTrailerOpen] = useState(false);
+
+  // Function to fetch trailer
+  const openTrailer = async () => {
+    setIsTrailerOpen(true);
+    if (!trailerKey) {
+      try {
+        const { data } = await axios.get(`/api/shows/trailer/${movie._id}`);
+        if (data.success && data.key) {
+          setTrailerKey(data.key);
+        } else {
+          toast.error("Trailer not found");
+          setIsTrailerOpen(false);
+        }
+      } catch (error) {
+        console.error("Failed to load trailer", error);
+        toast.error("Failed to load trailer");
+        setIsTrailerOpen(false);
+      }
+    }
+  };
 
   // 1. Get Image Base URL
   const image_base_url = import.meta.env.VITE_TMDB_IMAGE_BASE_URL || "https://image.tmdb.org/t/p/original";
@@ -223,7 +246,7 @@ const MovieDetails = () => {
 
               <button
                 className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl font-semibold flex items-center gap-2 transition-all hover:-translate-y-1 backdrop-blur-sm group"
-                onClick={() => toast("Trailer coming soon!")}
+                onClick={openTrailer}
               >
                 <PlayCircleIcon className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
                 <span>Watch Trailer</span>
@@ -304,6 +327,37 @@ const MovieDetails = () => {
           </div>
         )}
       </div>
+      {/* --- TRAILER MODAL --- */}
+      {isTrailerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-5xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
+            <button
+              onClick={() => setIsTrailerOpen(false)}
+              className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-white/20 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            {trailerKey ? (
+              <YouTube
+                videoId={trailerKey}
+                className="w-full h-full"
+                iframeClassName="w-full h-full"
+                opts={{
+                  width: '100%',
+                  height: '100%',
+                  playerVars: {
+                    autoplay: 1,
+                  },
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white">
+                <Loading />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
