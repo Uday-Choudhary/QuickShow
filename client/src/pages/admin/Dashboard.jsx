@@ -138,47 +138,50 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {dashboardData.activeShows.map((show) => (
-                <div
-                  key={show._id}
-                  className="group bg-gray-900/50 border border-white/10 rounded-xl overflow-hidden hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
-                >
-                  {/* Poster */}
-                  <div className="relative aspect-[2/3] overflow-hidden">
-                    <img
-                      src={image_base_url + show.movie.poster_path}
-                      alt={show.movie.title}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    />
-                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md text-xs font-bold text-yellow-400 flex items-center gap-1">
-                      <StarIcon className="w-3 h-3 fill-yellow-400" />
-                      {show.movie.vote_average?.toFixed(1) || "N/A"}
-                    </div>
-                  </div>
-
-                  {/* Details */}
-                  <div className="p-4 space-y-3">
-                    <h3 className="font-semibold text-white truncate group-hover:text-primary transition-colors">
-                      {show.movie.title}
-                    </h3>
-
-                    <div className="flex items-center justify-between">
-                      <div className="bg-primary/20 text-primary px-2 py-1 rounded text-sm font-bold">
-                        {currency} {show.showPrice}
-                      </div>
-                      <div className="text-xs text-gray-400 flex items-center gap-1">
-                        <ClockIcon className="w-3 h-3" />
-                        {show.movie.runtime}m
+              {dashboardData.activeShows.map((show) => {
+                if (!show || !show.movie) return null;
+                return (
+                  <div
+                    key={show._id}
+                    className="group bg-gray-900/50 border border-white/10 rounded-xl overflow-hidden hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
+                  >
+                    {/* Poster */}
+                    <div className="relative aspect-[2/3] overflow-hidden">
+                      <img
+                        src={image_base_url + show.movie.poster_path}
+                        alt={show.movie.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                      <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md text-xs font-bold text-yellow-400 flex items-center gap-1">
+                        <StarIcon className="w-3 h-3 fill-yellow-400" />
+                        {show.movie.vote_average?.toFixed(1) || "N/A"}
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-xs text-gray-400">
-                      <CalendarIcon className="w-3.5 h-3.5" />
-                      <span>{dateFormat(show.showDateTime)}</span>
+                    {/* Details */}
+                    <div className="p-4 space-y-3">
+                      <h3 className="font-semibold text-white truncate group-hover:text-primary transition-colors">
+                        {show.movie.title}
+                      </h3>
+
+                      <div className="flex items-center justify-between">
+                        <div className="bg-primary/20 text-primary px-2 py-1 rounded text-sm font-bold">
+                          {currency} {show.showPrice}
+                        </div>
+                        <div className="text-xs text-gray-400 flex items-center gap-1">
+                          <ClockIcon className="w-3 h-3" />
+                          {show.movie.runtime}m
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-xs text-gray-400">
+                        <CalendarIcon className="w-3.5 h-3.5" />
+                        <span>{dateFormat(show.showDateTime)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

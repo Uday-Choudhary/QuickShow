@@ -13,6 +13,8 @@ import MovieDetails from "./pages/MovieDetails";
 import SeatLayout from "./pages/SeatLayout";
 import MyBookings from "./pages/MyBookings";
 import Favorite from "./pages/Favorite";
+import Theaters from "./pages/Theaters";
+import Releases from "./pages/Releases";
 
 /* Admin Pages */
 import Layout from "./pages/admin/Layout";
@@ -24,7 +26,9 @@ import Loading from "./components/Loading";
 
 const App = () => {
   const location = useLocation();
-  const isAdminRoute = location.pathname.startsWith("/admin");
+  /* Logic to hide Navbar on specific routes */
+  const hideNavbarRoutes = ["/buy", "/loading", "/admin", "/movies"];
+  const shouldHideNavbar = hideNavbarRoutes.some(route => location.pathname.startsWith(route));
 
   const { user } = useAppContext();
 
@@ -32,7 +36,7 @@ const App = () => {
     <>
       <Toaster />
 
-      {!isAdminRoute && <Navbar />}
+      {!shouldHideNavbar && <Navbar />}
 
       <Routes>
         {/* ===================== USER ROUTES ===================== */}
@@ -41,8 +45,10 @@ const App = () => {
         <Route path="/movies/:id" element={<MovieDetails />} />
         <Route path="/buy/:id" element={<SeatLayout />} />
         <Route path="/my-bookings" element={<MyBookings />} />
+        <Route path="/theaters" element={<Theaters />} />
+        <Route path="/releases" element={<Releases />} />
         <Route path="/favorite" element={<Favorite />} />
-        <Route path="/loading/:nextUrl" element={<Loading />}/>
+        <Route path="/loading/:nextUrl" element={<Loading />} />
 
 
         {/* ===================== ADMIN ROUTES ===================== */}
@@ -65,7 +71,7 @@ const App = () => {
         </Route>
       </Routes>
 
-      {!isAdminRoute && <Footer />}
+      {!shouldHideNavbar && <Footer />}
     </>
   );
 };

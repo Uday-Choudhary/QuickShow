@@ -118,9 +118,9 @@ export const addShow = async (req, res) => {
         await Show.insertMany(showsToCreate);
 
         await inngest.send({
-            name : "app/show.added",
-            data : {
-                shows : {movieTitle : movie.title}
+            name: "app/show.added",
+            data: {
+                shows: { movieTitle: movie.title }
             }
         })
 
@@ -260,6 +260,7 @@ export const getTrailers = async (req, res) => {
                     title: movie.title,
                     image: `https://image.tmdb.org/t/p/original${movie.backdrop_path}`,
                     videoUrl: trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null,
+                    key: trailer ? trailer.key : null,
                     subtitle: `${movie.release_date} • ${movie.original_language.toUpperCase()}`
                 };
             } catch (innerError) {

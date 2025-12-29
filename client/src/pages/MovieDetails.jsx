@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 import BlurCircle from "../components/BlurCircle";
-import { Heart, PlayCircleIcon, StarIcon, Calendar, Clock, Ticket } from "lucide-react";
+import { Heart, PlayCircleIcon, StarIcon, Calendar, Clock, Ticket, ChevronLeft } from "lucide-react";
 import timeFormat from "../lib/timeFormat";
 import DateSelect from "../components/DateSelect";
 import MovieCard from "../components/MovieCard";
@@ -60,7 +60,7 @@ const MovieDetails = () => {
 
     initPage();
     scrollTo(0, 0);
-  }, [id, shows]);
+  }, [id, shows, axios, getToken]);
 
   // 4. FUNCTION: Handle Favorite Toggle
   const handleToggleFavorite = async () => {
@@ -136,7 +136,16 @@ const MovieDetails = () => {
       </div>
 
       {/* FIX: Added relative z-10 to ensure content sits ON TOP of the image */}
-      <div className="relative z-10 px-6 md:px-16 lg:px-32 xl:px-40 pt-32 md:pt-48 pb-20">
+      <div className="relative z-10 px-6 md:px-16 lg:px-32 xl:px-40 pt-10 md:pt-48 pb-20">
+
+        {/* Back Button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="mb-8 md:absolute md:top-24 md:left-16 lg:left-32 xl:left-40 p-3 bg-white/10 rounded-full hover:bg-white/20 transition-colors backdrop-blur-md border border-white/10 group"
+        >
+          <ChevronLeft className="w-6 h-6 text-white group-hover:-translate-x-1 transition-transform" />
+        </button>
+
         <div className="flex flex-col md:flex-row gap-12 max-w-7xl mx-auto items-start">
 
           {/* --- 2. POSTER (Floating Effect) --- */}

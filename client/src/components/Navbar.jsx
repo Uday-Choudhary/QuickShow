@@ -12,7 +12,7 @@ const Navbar = () => {
     const navigate = useNavigate()
 
     // 1. Get Context to make API calls
-    const { axios, getToken } = useAppContext()
+    const { axios, getToken, isAdmin } = useAppContext()
     const [hasFavorites, setHasFavorites] = useState(false)
 
     // 2. Check if user has favorites whenever they log in
@@ -44,8 +44,32 @@ const Navbar = () => {
         checkFavorites();
     }, [user, axios, getToken]); // Runs when user status changes
 
+    // 3. Scroll Logic
+    const [showNavbar, setShowNavbar] = useState(true);
+    const [lastScrollY, setLastScrollY] = useState(0);
+
+    useEffect(() => {
+        const controlNavbar = () => {
+            if (typeof window !== 'undefined') {
+                if (window.scrollY > lastScrollY && window.scrollY > 50) { // Scroll down & past threshold
+                    setShowNavbar(false);
+                } else { // Scroll up
+                    setShowNavbar(true);
+                }
+                setLastScrollY(window.scrollY);
+            }
+        };
+
+        window.addEventListener('scroll', controlNavbar);
+
+        return () => {
+            window.removeEventListener('scroll', controlNavbar);
+        };
+    }, [lastScrollY]);
+
+
     return (
-        <div className='fixed top-0 left-0 z-50 w-full flex items-center justify-between px-6 md:px-16 lg:px-36 py-5'>
+        <div className={`fixed top-0 left-0 z-50 w-full flex items-center justify-between px-6 md:px-16 lg:px-36 py-5 transition-transform duration-300 ${showNavbar ? 'translate-y-0' : '-translate-y-full'}`}>
             <Link to='/' className='max-md:flex-1'>
                 <img src={assets.logo} alt='' className='w-36 h-auto' />
             </Link>
@@ -61,7 +85,12 @@ const Navbar = () => {
                 <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/">Home</Link>
                 <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/movies">Movies</Link>
                 <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/theaters">Theaters</Link>
-                <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/releases">Releases</Link>
+
+                {
+                    isAdmin && (
+                        <Link onClick={() => { scrollTo(0, 0); setIsOpen(false) }} to="/admin">Dashboard</Link>
+                    )
+                }
 
                 {/* 3. Condition: Show only if user exists AND has favorites */}
                 {user && hasFavorites && (
