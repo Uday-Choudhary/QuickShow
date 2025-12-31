@@ -1,5 +1,6 @@
 import Show from "../models/Show.js";
 import Booking from "../models/Booking.js";
+import User from "../models/User.js";
 import { inngest } from "../inngest/index.js";
 import stripe from 'stripe'
 
@@ -29,7 +30,7 @@ const checkSeatsAvailability = async (showId, selectedSeats) => {
 export const createBooking = async (req, res) => {
     try {
         const { userId } = req.auth();
-        const { showId, selectedSeats } = req.body;
+        const { showId, selectedSeats, guestInfo } = req.body;
         const { origin } = req.headers;
 
         if (!showId || !Array.isArray(selectedSeats) || selectedSeats.length === 0) {
@@ -39,47 +40,39 @@ export const createBooking = async (req, res) => {
             });
         }
 
-        /* 1. ATOMIC CHECK & UPDATE: Find Show AND ensure seats are not taken */
-        // Fix: existing documents might have occupiedSeats as Array, which crashes $set logic
-        // We need to sanitise it first if it's an array.
-        let showDoc = await Show.findById(showId);
-        if (!showDoc) {
-            return res.status(404).json({
-                success: false,
-                message: "Show not found",
-            });
-        }
-
-        // Data Sanitization: Convert Array to Object if needed, or init if undefined
-        if (!showDoc.occupiedSeats || Array.isArray(showDoc.occupiedSeats)) {
-            const newOccupiedSeats = {};
-            if (Array.isArray(showDoc.occupiedSeats)) {
-                showDoc.occupiedSeats.forEach(seat => {
-                    // Assume legacy string array implies occupied by SOMEONE
-                    if (typeof seat === 'string') newOccupiedSeats[seat] = "legacy_user";
+        /* 0. FORCE SYNC USER (Fallback if Webhook Failed) */
+        const userExists = await User.exists({ _id: userId });
+        if (!userExists && guestInfo && guestInfo.email) {
+            console.log(`[createBooking] User ${userId} not found in DB. Syncing from guestInfo...`);
+            try {
+                await User.create({
+                    _id: userId,
+                    name: guestInfo.name || "Guest User",
+                    email: guestInfo.email,
+                    image: `https://ui-avatars.com/api/?name=${encodeURIComponent(guestInfo.name)}`
                 });
+            } catch (userError) {
+                console.error(`[createBooking] User sync failed:`, userError.message);
             }
-            showDoc.occupiedSeats = newOccupiedSeats;
-            // Mark as modified to ensure Mongoose saves the Mixed type change
-            showDoc.markModified('occupiedSeats');
-            await showDoc.save();
         }
 
+        /* 1. ATOMIC CHECK & UPDATE */
+        // We assume occupiedSeats is a Map/Object. 
+        // We build a query that ensures NONE of the requested seats exist in that object.
         const query = { _id: showId };
         const update = { $set: {} };
 
-        // Ensure none of the selected seats exist in occupiedSeats
         selectedSeats.forEach((seat) => {
+            // Check that the key "occupiedSeats.seatName" does NOT exist
             query[`occupiedSeats.${seat}`] = { $exists: false };
+            // Set the value to the userId
             update.$set[`occupiedSeats.${seat}`] = userId;
         });
 
         console.log(`[createBooking] Attempting atomic update. Show: ${showId}, Seats: ${selectedSeats.join(', ')}`);
-        // console.log(`[createBooking] Query:`, JSON.stringify(query));
 
-        // Try to update atomically
         const showData = await Show.findOneAndUpdate(query, update, {
-            new: true, // Return updated doc
+            new: true,
         }).populate("movie");
 
         if (!showData) {
@@ -119,7 +112,7 @@ export const createBooking = async (req, res) => {
                 },
                 unit_amount: Math.floor(showData.showPrice * 100),
             },
-            quantity: 1,
+            quantity: 1, // Quantity 1 for the total bundle price strategy you used
         }]
 
         const session = await stripeInstance.checkout.sessions.create({
@@ -246,7 +239,7 @@ export const verifyBooking = async (req, res) => {
         const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
         let sessionId = booking.sessionId;
 
-        // Fallback: If sessionId is missing, try to extract from paymentLink (legacy/failed-save scenario)
+        // Fallback extraction
         if (!sessionId && booking.paymentLink) {
             const match = booking.paymentLink.match(/\/pay\/(cs_[a-zA-Z0-9]+)/);
             if (match) {
@@ -262,7 +255,7 @@ export const verifyBooking = async (req, res) => {
 
         if (session.payment_status === 'paid') {
             booking.isPaid = true;
-            booking.paymentLink = ""; // Clear link as it's paid
+            booking.paymentLink = "";
             await booking.save();
             return res.status(200).json({ success: true, message: "Payment verified", isPaid: true });
         }
@@ -289,14 +282,8 @@ export const getOccupiedSeats = async (req, res) => {
             });
         }
 
-        let occupiedSeats = [];
-        if (Array.isArray(showData.occupiedSeats)) {
-            // Legacy support: if it's an array of strings
-            occupiedSeats = showData.occupiedSeats;
-        } else {
-            // Standard: Object keys
-            occupiedSeats = Object.keys(showData.occupiedSeats || {});
-        }
+        // Direct Object.keys call, assuming schema is always a Map now
+        const occupiedSeats = Object.keys(showData.occupiedSeats || {});
 
         console.log(`[getOccupiedSeats] Show: ${showId}, Count: ${occupiedSeats.length}`, occupiedSeats);
 

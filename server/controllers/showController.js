@@ -15,7 +15,7 @@ export const getNowPlayingMovies = async (req, res) => {
             {
                 params: {
                     api_key: process.env.TMDB_API_KEY,
-                    region: 'IN', // ✅ Fix: Fetch Indian Theatrical releases
+                    region: 'IN', 
                     page: 1
                 },
                 timeout: 10000,
@@ -87,7 +87,7 @@ export const addShow = async (req, res) => {
         /* ---------- build show docs (UTC safe) ---------- */
         const showsToCreate = [];
 
-        // ✅ Updated to handle Object: { "2024-12-28": ["10:00", "14:00"] }
+        //  Updated to handle Object: { "2024-12-28": ["10:00", "14:00"] }
         Object.entries(dates).forEach(([date, times]) => {
             if (Array.isArray(times)) {
                 times.forEach(t => {
