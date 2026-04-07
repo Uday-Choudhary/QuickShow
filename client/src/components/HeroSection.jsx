@@ -108,7 +108,7 @@ export default function HeroSection() {
                     <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mb-6 ring-1 ring-white/10">
                         <TicketIcon className="w-10 h-10 text-gray-500" />
                     </div>
-                    <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-4">Welcome to CineBook</h1>
+                    <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-4">Welcome to QuickShow</h1>
                     <p className="text-gray-400 text-lg mb-8">Currently, there are no actively scheduled shows. Please check back later for the latest blockbusters and events.</p>
                     <button
                         onClick={() => navigate('/movies')}
@@ -494,8 +494,8 @@ export default function HeroSection() {
                             key={idx}
                             onClick={() => goTo(idx)}
                             className={`h-2 rounded-full transition-all duration-500 cursor-pointer ${idx === current
-                                    ? 'w-9 bg-primary shadow-[0_0_12px_rgba(220,38,38,0.8)]'
-                                    : 'w-2 bg-white/30 hover:bg-white/60'
+                                ? 'w-9 bg-primary shadow-[0_0_12px_rgba(220,38,38,0.8)]'
+                                : 'w-2 bg-white/30 hover:bg-white/60'
                                 }`}
                         ></div>
                     ))}
