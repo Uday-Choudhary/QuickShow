@@ -45,7 +45,7 @@ const FeaturedSection = () => {
       </div>
 
       {/* Movies Grid */}
-      <div className="flex flex-wrap max-sm:justify-center gap-8 mt-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-8 justify-items-center">
         {uniqueMovies.length > 0 ? (
           uniqueMovies.map((movie) => (
             <MovieCard key={movie._id} movie={movie} />

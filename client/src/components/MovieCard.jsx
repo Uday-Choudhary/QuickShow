@@ -30,7 +30,7 @@ const MovieCard = ({ movie }) => {
 
     return (
         <div
-            className='group flex flex-col w-[280px] bg-[#18181b] rounded-2xl overflow-hidden border border-white/10 shadow-lg transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/10 cursor-pointer'
+            className='group flex flex-col w-full max-w-[280px] bg-[#18181b] rounded-2xl overflow-hidden border border-white/10 shadow-lg transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/10 cursor-pointer'
             onClick={handleNavigate}
         >
             {/* --- Image Section --- */}

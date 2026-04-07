@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 const SeatLayout = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { shows, axios, getToken } = useAppContext();
+  const { shows, axios, getToken, user } = useAppContext();
 
   const [show, setShow] = useState(null);
   const [selectedSeats, setSelectedSeats] = useState([]);
@@ -112,7 +112,11 @@ const SeatLayout = () => {
       // Create Booking in DB
       const { data } = await axios.post('/api/booking/create', {
         showId: id,
-        selectedSeats: selectedSeats
+        selectedSeats: selectedSeats,
+        guestInfo: {
+          name: user?.fullName || user?.firstName || "Guest",
+          email: user?.primaryEmailAddress?.emailAddress || ""
+        }
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });

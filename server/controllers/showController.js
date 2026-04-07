@@ -301,7 +301,7 @@ export const getMovieTrailer = async (req, res) => {
             }
         );
 
-        const videos = data.results || [];
+        const zvideos = data.results || [];
 
         // 1. Priority: Find a Trailer specifically
         let video = videos.find(

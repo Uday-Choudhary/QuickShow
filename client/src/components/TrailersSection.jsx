@@ -11,25 +11,42 @@ const TrailersSection = () => {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        let isMounted = true;
+        let timeoutId;
+
         const fetchTrailers = async () => {
             try {
                 const { data } = await axios.get(
                     import.meta.env.VITE_BASE_URL + '/api/shows/trailers'
                 )
 
-                if (data.success && data.trailers?.length) {
-                    setTrailers(data.trailers)
-                    setCurrentTrailer(data.trailers[0])
+                if (isMounted) {
+                    if (data.success && data.trailers?.length) {
+                        setTrailers(data.trailers)
+                        setCurrentTrailer(data.trailers[0])
+                        setLoading(false)
+                    } else {
+                        // Retry if data is empty or invalid
+                        console.log("No trailers found, retrying in 5s...");
+                        timeoutId = setTimeout(fetchTrailers, 5000);
+                    }
                 }
             } catch (error) {
-                console.error(error)
-                toast.error('Failed to load trailers')
-            } finally {
-                setLoading(false)
+                if (isMounted) {
+                    console.error("Failed to load trailers, retrying in 5s...", error)
+                    // Silent retry or optional toast
+                    // toast.error('Failed to load trailers. Retrying...') 
+                    timeoutId = setTimeout(fetchTrailers, 5000)
+                }
             }
         }
 
         fetchTrailers()
+
+        return () => {
+            isMounted = false;
+            if (timeoutId) clearTimeout(timeoutId);
+        }
     }, [])
 
     // --- Loading Skeleton ---
