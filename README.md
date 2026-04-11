@@ -1,347 +1,358 @@
-# 🎬 QuickShow - Movie Booking Platform
+# QuickShow -- Movie Ticket Booking Platform
 
-A modern, full-stack movie booking application that allows users to browse movies, book tickets, and manage their reservations with real-time seat selection and secure payment processing.
+QuickShow is a full-stack movie ticket booking system where users can browse now-playing films, pick seats from an interactive layout, and pay through Stripe. An admin panel lets theater operators create shows, manage listings, and track every booking in real time.
 
-![React](https://img.shields.io/badge/React-19.1.1-blue?logo=react)
-![Node.js](https://img.shields.io/badge/Node.js-Express-green?logo=node.js)
-![MongoDB](https://img.shields.io/badge/MongoDB-Database-brightgreen?logo=mongodb)
-![Stripe](https://img.shields.io/badge/Stripe-Payments-purple?logo=stripe)
+The project handles the hard parts of online ticketing: **atomic seat locking** to prevent double bookings, **automatic seat release** when payments time out, and **transactional email notifications** on every successful purchase. It is built with React 19 on the frontend and Express 5 with MongoDB on the backend.
 
-## ✨ Features
+![React](https://img.shields.io/badge/React-19.1-61dafb?logo=react&logoColor=white)
+![Express](https://img.shields.io/badge/Express-5.1-000000?logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose_8-47A248?logo=mongodb&logoColor=white)
+![Stripe](https://img.shields.io/badge/Stripe-Checkout-635bff?logo=stripe&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4.1-06B6D4?logo=tailwindcss&logoColor=white)
 
-### User Features
-- 🎥 **Browse Movies**: Discover now-playing movies with data from TMDB API
-- 🎫 **Book Tickets**: Interactive seat selection with real-time availability
-- ⏱️ **Timed Reservations**: Seats are temporarily blocked during booking process
-- 💳 **Secure Payments**: Stripe integration for safe payment processing
-- 📧 **Email Notifications**: Automated booking confirmations via email
-- 📱 **My Bookings**: View and manage all your movie bookings
-- ❤️ **Favorites**: Save your favorite movies for quick access
-- 🎬 **Trailers**: Watch movie trailers directly in the app
-- 🔐 **Authentication**: Secure user authentication with Clerk
+---
 
-### Admin Features
-- 🎭 **Show Management**: Add, edit, and delete movie shows
-- 📊 **Booking Overview**: Monitor all bookings and seat occupancy
-- 🎪 **Theater Management**: Manage theaters and showtimes
+## Screenshots
 
-### Technical Features
-- ⚡ **Real-time Updates**: Instant seat availability updates
-- 🔄 **Background Jobs**: Automated seat release using Inngest
-- 🎯 **Concurrency Control**: Prevents double bookings
-- 📱 **Responsive Design**: Works seamlessly on all devices
-- 🚀 **Fast Performance**: Built with Vite for optimal speed
+### Home Page
 
-## 🛠️ Tech Stack
+The landing page features a hero carousel that cycles through currently playing movies. Each slide shows the movie backdrop, genres, rating, runtime, and a direct "Book Now" call-to-action. Below the hero sits a featured movies grid and a trailers section with embedded YouTube playback.
+
+![Home Page](QuickShowUI/HomePage.png)
+
+### Movie Details and Booking
+
+Clicking into a movie opens its detail view with the full synopsis, cast list, TMDB rating, and available showtimes. Users can book tickets, watch the trailer inline, or save the movie to their favorites.
+
+![Booking Page](QuickShowUI/BookingPage.png)
+
+### Seat Selection
+
+The seat layout page renders a theater-style grid with row labels and per-seat pricing. Seats are color-coded by tier (Budget / Premium) and availability status (Available / Selected / Sold). A live price total updates as seats are toggled, and the checkout button redirects to Stripe.
+
+![Seat Layout](QuickShowUI/SeatLayout.png)
+
+### Admin Panel -- Show Management
+
+Administrators access a dedicated dashboard behind Clerk authentication. The "Add Shows" page pulls the full now-playing catalog from TMDB, lets the admin pick a movie, set ticket prices, choose dates, and assign showtimes.
+
+![Admin Dashboard](QuickShowUI/AdminDashnoard.png)
+
+### Admin Panel -- Booking List
+
+The bookings view gives admins a complete ledger: user info, movie title, showtime, assigned seats, total amount, and payment status (Paid / Pending) -- all in a single scrollable table.
+
+![Admin Booking List](QuickShowUI/BookingListForAdmin.png)
+
+### System Architecture -- Booking Flow
+
+The sequence diagram below traces a ticket purchase end-to-end: from seat selection on the frontend, through the atomic `findOneAndUpdate` check on MongoDB, Stripe Checkout session creation, webhook confirmation, and the Inngest background timer that releases unpaid seats after 7 minutes.
+
+![Sequence Diagram](QuickShowUI/Sequence%20Diagram%20QuickShow.png)
+
+---
+
+## Features
+
+### For Users
+
+- **Browse Movies** -- Live now-playing data pulled from the TMDB API (Indian region).
+- **Movie Details** -- Full synopsis, cast, genres, runtime, rating, and tagline sourced from TMDB.
+- **Interactive Seat Selection** -- Theater-style grid with Budget and Premium tiers, real-time occupied seat updates.
+- **Stripe Checkout** -- Secure payment flow with webhook-verified confirmation.
+- **Timed Seat Locks** -- Selected seats are held for 7 minutes; if payment is not completed, they are automatically released back to inventory.
+- **Email Confirmations** -- HTML booking receipts sent via Nodemailer on successful payment.
+- **Show Reminders** -- Cron-based reminder emails fired 8 hours before showtime.
+- **Favorites** -- Save movies to a personal favorites list for quick access later.
+- **Trailers** -- Watch YouTube trailers directly within the app using React Player.
+- **My Bookings** -- View booking history, payment status, and retry failed payments.
+
+### For Admins
+
+- **Show Creation** -- Select a movie from TMDB, set pricing, pick multiple dates/times, and bulk-create show entries.
+- **Show Listings** -- View and manage all upcoming shows.
+- **Booking Overview** -- Monitor every booking across all shows with user details, seat assignments, and payment status.
+- **New Show Notifications** -- When a show is added, every registered user gets an email blast automatically.
+
+### Technical
+
+- **Atomic Concurrency Control** -- Seat booking uses MongoDB's `findOneAndUpdate` with `$exists: false` checks to prevent race conditions. Two users cannot book the same seat.
+- **Background Job Engine** -- Inngest handles delayed seat release, email dispatch, user sync from Clerk, and show reminders as durable, retriable step functions.
+- **Webhook-Driven Architecture** -- Stripe payment confirmations and Clerk user lifecycle events are processed through verified webhooks.
+- **Fallback User Sync** -- If the Clerk webhook fails to create a user document in time, the booking controller performs an inline sync before checkout.
+
+---
+
+## Tech Stack
 
 ### Frontend
-- **Framework**: React 19.1.1
-- **Build Tool**: Vite 7.1.2
-- **Routing**: React Router DOM 7.8.2
-- **Styling**: TailwindCSS 4.1.13
-- **Authentication**: Clerk React 5.45.0
-- **HTTP Client**: Axios 1.13.2
-- **UI Components**: 
-  - Lucide React (Icons)
-  - React Hot Toast (Notifications)
-  - React Player (Video playback)
+
+| Concern         | Library                        |
+| --------------- | ------------------------------ |
+| Framework       | React 19.1                     |
+| Build Tool      | Vite 7.1                       |
+| Routing         | React Router DOM 7.8           |
+| Styling         | TailwindCSS 4.1                |
+| Auth            | Clerk React 5.45               |
+| HTTP            | Axios 1.13                     |
+| Icons           | Lucide React                   |
+| Notifications   | React Hot Toast                |
+| Video Playback  | React Player / React YouTube   |
 
 ### Backend
-- **Runtime**: Node.js
-- **Framework**: Express 5.1.0
-- **Database**: MongoDB with Mongoose 8.18.1
-- **Authentication**: Clerk Express 1.7.60
-- **Payment Processing**: Stripe 20.1.0
-- **Email Service**: Nodemailer 7.0.12
-- **Background Jobs**: Inngest 3.48.1
-- **File Storage**: Cloudinary 2.7.0
-- **Webhooks**: Svix 1.82.0
 
-## 📁 Project Structure
+| Concern           | Library              |
+| ----------------- | -------------------- |
+| Runtime           | Node.js              |
+| Framework         | Express 5.1          |
+| Database          | MongoDB (Mongoose 8) |
+| Auth              | Clerk Express 1.7    |
+| Payments          | Stripe 20.1          |
+| Email             | Nodemailer 7.0       |
+| Background Jobs   | Inngest 3.48         |
+| Media Storage     | Cloudinary 2.7       |
+| Webhook Verify    | Svix 1.82            |
+
+---
+
+## Project Structure
 
 ```
 QuickShow/
-├── client/                 # Frontend React application
+├── client/
 │   ├── src/
-│   │   ├── components/    # Reusable UI components
-│   │   ├── pages/         # Page components
-│   │   ├── context/       # React context providers
-│   │   ├── lib/           # Utility functions
-│   │   └── assets/        # Static assets
-│   ├── package.json
-│   └── vite.config.js
+│   │   ├── components/        # Navbar, Footer, HeroSection, MovieCard, SeatLayout pieces, etc.
+│   │   ├── pages/             # Home, Movies, MovieDetails, SeatLayout, MyBookings, Favorite, Theaters
+│   │   │   └── admin/         # Dashboard, AddShows, ListShows, ListBookings, Layout
+│   │   ├── context/           # Global app context (auth state, API base URL)
+│   │   ├── lib/               # Utility helpers
+│   │   └── assets/            # Static images and icons
+│   ├── index.html
+│   ├── vite.config.js
+│   └── vercel.json
 │
-├── server/                # Backend Express application
-│   ├── config/           # Configuration files
-│   ├── controllers/      # Route controllers
-│   ├── models/           # MongoDB models
-│   ├── routes/           # API routes
-│   ├── middleware/       # Custom middleware
-│   ├── inngest/          # Background job functions
-│   ├── server.js         # Entry point
-│   └── package.json
+├── server/
+│   ├── config/                # db.js (MongoDB connection), nodeMailer.js (SMTP transport)
+│   ├── controllers/           # showController, bookingController, adminController, userController, stripeWebhooks
+│   ├── models/                # Booking, Show, Movies, User (Mongoose schemas)
+│   ├── routes/                # showRoutes, bookingRoutes, adminRoutes, userRoutes
+│   ├── middleware/            # auth.js (Clerk token verification)
+│   ├── inngest/               # Background functions: seat release, email, user sync, reminders, notifications
+│   ├── server.js              # Express app entry point
+│   └── vercel.json
 │
-└── README.md
+└── QuickShowUI/               # Screenshots and architecture diagrams
 ```
 
-## 🚀 Getting Started
+---
+
+## Getting Started
 
 ### Prerequisites
 
-- Node.js (v16 or higher)
-- MongoDB (local or Atlas)
-- npm or yarn
-- Clerk account
-- Stripe account
-- TMDB API key
-- Cloudinary account
-- Email service credentials
+- Node.js v18 or higher
+- A MongoDB database (local or Atlas)
+- Accounts on: [Clerk](https://clerk.dev), [Stripe](https://stripe.com), [TMDB](https://www.themoviedb.org/documentation/api), [Cloudinary](https://cloudinary.com)
+- An SMTP email account (Gmail app password works fine)
 
 ### Environment Variables
 
-#### Client (.env)
-Create a `.env` file in the `client` directory:
+Create a `.env` file inside the `client/` directory:
 
 ```env
 VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
 VITE_API_URL=http://localhost:3000
 ```
 
-#### Server (.env)
-Create a `.env` file in the `server` directory:
+Create a `.env` file inside the `server/` directory:
 
 ```env
-# Server Configuration
 PORT=3000
-NODE_ENV=development
-
-# Database
 MONGODB_URI=your_mongodb_connection_string
 
-# Clerk Authentication
+# Clerk
 CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
 CLERK_SECRET_KEY=your_clerk_secret_key
 CLERK_WEBHOOK_SECRET=your_clerk_webhook_secret
 
-# Stripe Payment
+# Stripe
 STRIPE_SECRET_KEY=your_stripe_secret_key
 STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 
-# TMDB API
+# TMDB
 TMDB_API_KEY=your_tmdb_api_key
 
 # Cloudinary
-CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 
-# Email Service (Nodemailer)
-EMAIL_USER=your_email@example.com
-EMAIL_PASS=your_email_password
-EMAIL_HOST=smtp.example.com
+# Email (Nodemailer)
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
+EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 
 # Inngest
 INNGEST_EVENT_KEY=your_inngest_event_key
 INNGEST_SIGNING_KEY=your_inngest_signing_key
 
-# Frontend URL
+# Frontend origin (for CORS and redirect URLs)
 CLIENT_URL=http://localhost:5173
 ```
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd QuickShow
-   ```
+```bash
+# Clone the repository
+git clone https://github.com/Uday-Choudhary/QuickShow.git
+cd QuickShow
 
-2. **Install server dependencies**
-   ```bash
-   cd server
-   npm install
-   ```
+# Install server dependencies
+cd server
+npm install
 
-3. **Install client dependencies**
-   ```bash
-   cd ../client
-   npm install
-   ```
+# Install client dependencies
+cd ../client
+npm install
+```
 
-4. **Set up environment variables**
-   - Create `.env` files in both `client` and `server` directories
-   - Fill in the required environment variables (see above)
+### Running Locally
 
-### Running the Application
+Open two terminal windows:
 
-#### Development Mode
+```bash
+# Terminal 1 -- Start the backend
+cd server
+npm run dev          # runs on http://localhost:3000
+```
 
-1. **Start the server** (from `server` directory)
-   ```bash
-   npm run dev
-   ```
-   Server will run on `http://localhost:3000`
+```bash
+# Terminal 2 -- Start the frontend
+cd client
+npm run dev          # runs on http://localhost:5173
+```
 
-2. **Start the client** (from `client` directory)
-   ```bash
-   npm run dev
-   ```
-   Client will run on `http://localhost:5173`
+---
 
-#### Production Mode
+## API Reference
 
-1. **Build the client**
-   ```bash
-   cd client
-   npm run build
-   ```
+### Public
 
-2. **Start the server**
-   ```bash
-   cd ../server
-   npm start
-   ```
+| Method | Endpoint                          | Description                     |
+| ------ | --------------------------------- | ------------------------------- |
+| GET    | `/`                               | Health check                    |
+| GET    | `/api/shows/now-playing`          | Now-playing movies from TMDB    |
+| GET    | `/api/shows/trailers`             | Upcoming movie trailers         |
+| GET    | `/api/shows/:movieId`             | Showtimes for a specific movie  |
+| GET    | `/api/shows/:movieId/trailer`     | Single movie trailer key        |
 
-## 📚 API Documentation
+### Authenticated (Clerk JWT required)
 
-### Public Endpoints
+| Method | Endpoint                          | Description                          |
+| ------ | --------------------------------- | ------------------------------------ |
+| GET    | `/api/shows`                      | All upcoming shows                   |
+| POST   | `/api/booking/create`             | Create booking and redirect to Stripe|
+| POST   | `/api/booking/retry-payment`      | Retry payment for a pending booking  |
+| POST   | `/api/booking/verify`             | Verify payment status manually       |
+| GET    | `/api/user/favorites`             | Get user's favorite movies           |
+| POST   | `/api/user/favorites`             | Add a movie to favorites             |
+| DELETE | `/api/user/favorites/:movieId`    | Remove a movie from favorites        |
 
-- `GET /` - Health check
-- `GET /api/shows/now-playing` - Get currently playing movies
-- `GET /api/shows/:id` - Get specific show details
+### Admin
 
-### Protected Endpoints (Require Authentication)
-
-#### Shows
-- `GET /api/shows` - Get all shows
-- `GET /api/shows/:id` - Get show by ID
-
-#### Bookings
-- `POST /api/booking/create` - Create new booking
-- `GET /api/booking/user` - Get user's bookings
-- `POST /api/booking/retry-payment` - Retry failed payment
-- `POST /api/booking/verify` - Verify booking payment status
-
-#### User
-- `GET /api/user/favorites` - Get user's favorite movies
-- `POST /api/user/favorites` - Add movie to favorites
-- `DELETE /api/user/favorites/:movieId` - Remove from favorites
-
-### Admin Endpoints (Require Admin Role)
-
-- `POST /api/admin/shows` - Add new show
-- `PUT /api/admin/shows/:id` - Update show
-- `DELETE /api/admin/shows/:id` - Delete show
-- `GET /api/admin/bookings` - Get all bookings
+| Method | Endpoint                          | Description                     |
+| ------ | --------------------------------- | ------------------------------- |
+| POST   | `/api/admin/shows`                | Add new show(s)                 |
+| PUT    | `/api/admin/shows/:id`            | Update a show                   |
+| DELETE | `/api/admin/shows/:id`            | Delete a show                   |
+| GET    | `/api/admin/bookings`             | List all bookings               |
 
 ### Webhooks
 
-- `POST /api/stripe` - Stripe webhook handler
-- `POST /api/inngest` - Inngest event handler
+| Endpoint         | Source  | Purpose                                    |
+| ---------------- | ------- | ------------------------------------------ |
+| `/api/stripe`    | Stripe  | Payment confirmation (`checkout.session.completed`) |
+| `/api/inngest`   | Inngest | Background function execution              |
 
-## 🎯 Key Features Explained
+---
 
-### Seat Booking Flow
+## How the Booking Flow Works
 
-1. User selects seats on the seat layout page
-2. Seats are temporarily blocked for 10 minutes
-3. User proceeds to payment via Stripe
-4. On successful payment:
-   - Booking is confirmed
-   - Seats are permanently marked as occupied
-   - Confirmation email is sent
-5. If payment fails or times out:
-   - Seats are automatically released via Inngest background job
-   - User can retry payment from "My Bookings" page
+1. **Seat Selection** -- The user picks seats on the interactive layout. Each seat's availability is fetched live from the `occupiedSeats` map on the Show document.
 
-### Background Jobs (Inngest)
+2. **Atomic Lock** -- On checkout, the server runs a single `findOneAndUpdate` query that checks every requested seat has `$exists: false` in the `occupiedSeats` object. If even one seat was grabbed by another user in the meantime, the entire update fails and the user is told to pick different seats. This eliminates race conditions without external locking.
 
-- **Seat Release**: Automatically releases unpaid seats after timeout
-- **User Sync**: Syncs user data with Clerk authentication
-- **Email Notifications**: Sends booking confirmations asynchronously
+3. **Booking Created (Unpaid)** -- A Booking document is created with `isPaid: false`. At the same time, an Inngest event (`booking.created`) is fired.
 
-### Payment Processing
+4. **Stripe Checkout** -- The user is redirected to a Stripe Checkout session. The session metadata carries the `bookingId`.
 
-- Stripe Checkout integration for secure payments
-- Webhook verification for payment confirmation
-- Manual payment verification fallback
-- Session-based payment tracking
+5. **Payment Confirmed** -- Stripe sends a `checkout.session.completed` webhook. The server marks the booking as paid, clears the payment link, and fires an `app/show.booked` Inngest event.
 
-## 🔒 Security Features
+6. **Confirmation Email** -- Inngest picks up the `app/show.booked` event, fetches the full booking details with populated movie and user data, and sends a styled HTML receipt to the user's email.
 
-- JWT-based authentication via Clerk
-- Webhook signature verification (Stripe & Clerk)
-- Environment variable protection
-- CORS configuration
-- Input validation and sanitization
-- Secure payment processing
+7. **Timeout Release** -- If the user never completes payment, the Inngest function that was triggered in step 3 wakes up after 7 minutes, checks `isPaid`, and if still false, removes the seats from `occupiedSeats` and marks the booking as Cancelled. The seats go back into inventory for other users.
 
-## 🧪 Testing
+---
 
-### Test Email Configuration
-Run the email test script to verify email setup:
+## Deployment
+
+Both the client and server include `vercel.json` configs for one-command deployment to Vercel.
+
+```bash
+# Deploy server
+cd server && vercel
+
+# Deploy client
+cd client && vercel
+```
+
+After deploying, update these values:
+- Set `VITE_API_URL` in the client's Vercel environment to the production server URL.
+- Set `CLIENT_URL` in the server's Vercel environment to the production client URL.
+- Update webhook endpoints in the Stripe and Clerk dashboards to point to your production server.
+
+---
+
+## Testing Email Setup
+
+A standalone script is included to verify your SMTP configuration before going live:
+
 ```bash
 cd server
 node test-email.js
 ```
 
-## 📦 Deployment
+---
 
-### Vercel Deployment (Recommended)
-
-The project includes a `vercel.json` configuration for easy deployment.
-
-1. **Deploy the server**
-   ```bash
-   cd server
-   vercel
-   ```
-
-2. **Deploy the client**
-   ```bash
-   cd client
-   vercel
-   ```
-
-3. **Configure environment variables** in Vercel dashboard
-
-### Environment-Specific Configuration
-
-- Update `VITE_API_URL` in client to point to production server
-- Update `CLIENT_URL` in server to point to production client
-- Configure webhook URLs in Stripe and Clerk dashboards
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
+## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m 'Add your feature'`)
+4. Push to the branch (`git push origin feature/your-feature`)
 5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the ISC License.
-
-## 👨‍💻 Author
-
-Uday Kumar Choudhary
-
-## 🙏 Acknowledgments
-
-- [TMDB](https://www.themoviedb.org/) for movie data
-- [Clerk](https://clerk.dev/) for authentication
-- [Stripe](https://stripe.com/) for payment processing
-- [Inngest](https://www.inngest.com/) for background jobs
-- [Cloudinary](https://cloudinary.com/) for media management
-
-## 📞 Support
-
-For support, email choudharyuday85@gmail.com or open an issue in the repository.
 
 ---
 
-**Built with ❤️ using React, Node.js, and MongoDB**
+## License
+
+ISC
+
+---
+
+## Author
+
+**Uday Kumar Choudhary**
+- GitHub: [Uday-Choudhary](https://github.com/Uday-Choudhary)
+- Email: choudharyuday85@gmail.com
+
+---
+
+## Acknowledgments
+
+- [TMDB](https://www.themoviedb.org/) for the movie database API
+- [Clerk](https://clerk.dev/) for authentication
+- [Stripe](https://stripe.com/) for payment processing
+- [Inngest](https://www.inngest.com/) for durable background functions
+- [Cloudinary](https://cloudinary.com/) for media storage
